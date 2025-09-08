@@ -19,13 +19,20 @@ pd.set_option("display.max_columns", None)
 
 data = {
     "NVIDIA": {
-        "url": "https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units"
+        "urls": [
+            "https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units"
+        ]
     },
     "AMD": {
-        "url": "https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units",
+        "urls": [
+            "https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units",
+        ]
     },
     "Intel": {
-        "url": "https://en.wikipedia.org/wiki/Intel_Xe",
+        "urls": [
+            "https://en.wikipedia.org/wiki/Intel_Xe",
+            "https://en.wikipedia.org/wiki/Intel_Arc",
+        ]
     },
 }
 
@@ -47,7 +54,18 @@ def merge(df, dst, src, replaceNoWithNaN=False, delete=True):
 
 for vendor in ["NVIDIA", "AMD", "Intel"]:
     # requests.get handles https
-    html = requests.get(data[vendor]["url"]).text
+    html = ""
+    for url in data[vendor]["urls"]:
+        print(url)
+        html = (
+            html
+            + requests.get(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
+                },
+            ).text
+        )
     # oddly, some dates look like:
     # <td><span class="sortkey" style="display:none;speak:none">000000002010-02-25-0000</span><span style="white-space:nowrap">Feb 25, 2010</span></td>
     html = re.sub(r'<span [^>]*style="display:none[^>]*>([^<]+)</span>', "", html)
@@ -69,8 +87,8 @@ for vendor in ["NVIDIA", "AMD", "Intel"]:
     html = re.sub("\u00d710<sup>6</sup>", "\u00d7106", html)  # 10^6 -> 106
     html = re.sub("\u00d710<sup>9</sup>", "\u00d7109", html)  # 10^9 -> 109
     html = re.sub(r"<sup>[\d\*]+</sup>", "", html)  # delete footnotes (num or *)
-    # with open('/tmp/%s.html' % vendor, 'wb') as f:
-    #     f.write(html.encode('utf8'))
+    # with open("/tmp/%s.html" % vendor, "wb") as f:
+    #     f.write(html.encode("utf8"))
 
     dfs = pd.read_html(
         StringIO(html),
@@ -79,7 +97,9 @@ for vendor in ["NVIDIA", "AMD", "Intel"]:
     )
     # purge tables with <= 2 columns, because they're not real/helpful
     dfs = [df for df in dfs if len(df.columns.values) > 2]
-    dfs = [df for df in dfs if df.columns[0] != 'GeForce RTX'] ### XXX fix this is a weird transposed table
+    dfs = [
+        df for df in dfs if df.columns[0] != "GeForce RTX"
+    ]  ### XXX fix this is a weird transposed table
     #### dfs = [df.transpose(copy=True) if not df.empty and df.columns[0] == 'GeForce RTX' else df for df in dfs]
 
     for idx, df in enumerate(dfs):
@@ -243,6 +263,7 @@ for col in ["TBP", "TDP"]:
 
 df = merge(df, "Model", "Model (Codename)")
 df = merge(df, "Model", "Model (Code name)")
+df = merge(df, "Model", "Model name")
 df = merge(df, "Model", "Code name (console model)")
 df = merge(df, "Model", "Branding and Model")
 # df = merge(df, 'Model', 'Chip (Device)')
@@ -288,6 +309,8 @@ for col in ["Transistors (million)", "Die size (mm2)", "Core config"]:
 
 for prec in ["Single", "Double", "Half"]:
     for col in [
+        f"Processing power TFLOPS {prec}",
+        f"Processing power (TFLOPS) {prec}",
         f"Processing power (TFLOPS) {prec} precision",
         f"Processing power (TFLOPS) {prec} precision (base)",
         f"Processing power (TFLOPS) {prec} precision (boost)",
